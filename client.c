@@ -40,6 +40,12 @@ char* readMsg(int socket){
 	return msg;
 }
 
+char* readID(int socket) {
+	char msg[2];
+	ssize_t id = recv(socket, msg, 1, 0);
+	return msg;
+}
+
 int main(int argc, char *argv[]) {
 
 	if (argc != 3) {
@@ -58,7 +64,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* Variable que le serveur donne au client 0 ou 1 pour savoir qui engage la conversation*/
-	int ordre = atoi(readMsg(socket));
+	int ordre = atoi(readID(socket));
 	char* msg;
 
 	if (ordre == 0){
