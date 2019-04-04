@@ -7,7 +7,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 
-#define MSG 32
+#define MSG 256
 
 /* rend adServ global */
 struct sockaddr_in adServ;
