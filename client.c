@@ -39,11 +39,8 @@ int writeMsg(int socket){
 }
 
 /* fonction de recoit d un message */
-char* readMsg(int socket){
-	char msg[256];
+void readMsg(int socket, char* msg){
 	ssize_t rcv = recv(socket, msg, 256, 0);
-	printf("order received %d", strlen(msg));
-	return msg;
 }
 
 int main(int argc, char *argv[]) {
@@ -70,25 +67,25 @@ int main(int argc, char *argv[]) {
 	}
 
 	/* Variable que le serveur donne au client, 0 ou 1 pour savoir qui engage la conversation*/
-	char* ordre; 
-	ordre = readMsg(socket);
-	printf("order received %s %d", ordre, strlen(ordre));
-	char* msg;
+	char msg[256];
+	readMsg(socket, msg);
+	printf("order received %s\n", msg);
+	
 
-	if (ordre == 0){
+	if (msg[0] == '0'){
 		/* Client qui ecrit en premier
 		tant que nous lisons pas le message "fin" le chat continu */
 		while(strcmp(msg, "fin") != 0){
 			printf("Ecrivez votre message : ");
 			writeMsg(socket);
-			msg = readMsg(socket);
+			readMsg(socket, msg);
 			printf("Message recu : %s\n", msg);
 		}
 	}else{
 		/* Client qui attend d'abord un message
 		tant que nous lisons pas le message "fin" le chat continu */
 		while(strcmp(msg, "fin") != 0){
-			msg = readMsg(socket);
+			readMsg(socket, msg);
 			printf("Message recu : %s\n", msg);
 			/* reverifie que le message recu n'est pas "fin" pour ne pas continuer a ecrire */
 			if(strcmp(msg, "fin") != 0){
