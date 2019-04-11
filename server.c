@@ -77,7 +77,7 @@ int sendID(int socket, char* id) {
 int main(int argc, char* argv[]) {
 
 	/*
-		check if port and ip were given in arguments
+		check if port is given in arguments
 	*/
 	if(argc != 2) { 
 		printf("Pas le bon nombre d'arguments\n");
@@ -92,6 +92,9 @@ int main(int argc, char* argv[]) {
 	*/
 	char* port = argv[1];
 
+	/*
+		socket server intialisation with port given in argument call
+	*/
 	int socket = initServer(atoi(port), 2);
 
 	/*
@@ -115,7 +118,8 @@ int main(int argc, char* argv[]) {
 		printf("Client 2 connecté\n");
 
 		/*
-			sending ID to clients
+			sending ID order to clients
+			0 for the first one connected and 1 for the second client connected
 		*/
 		int confirm1 = sendID(sCli1, "0");
 		int confirm2 = sendID(sCli2, "1");
