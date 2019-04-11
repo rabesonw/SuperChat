@@ -9,7 +9,6 @@
 
 #define MSG 124
 
-
 /*
 	initServer : Int x Int -> Int
 	Initializes the socket for the server with port and 
@@ -75,16 +74,6 @@ int sendID(int socket, char* id) {
 	return sender;
 }
 
-/*
-	validIP : Char* -> Int
-	checks if IP given in parameter is a correct IP
-	returns 1 if correct IP, 0 if not
-*/
-int validIP(char *ip) {
-	//TODO validate IP adress
-	return 0;
-}
-
 int main(int argc, char* argv[]) {
 
 	/*
@@ -96,9 +85,6 @@ int main(int argc, char* argv[]) {
 	} else if(strlen(argv[1]) <= 4 || atoi(argv[1]) <= 1024) {
 		printf("Mauvais port\n");
 		exit(0);
-	} else {
-		printf("ok\n");
-		//TODO insert validIP verification here
 	}
 
 	/*
@@ -124,9 +110,9 @@ int main(int argc, char* argv[]) {
 			accepting the connection of the two clients
 		*/
 		int sCli1 = acceptClient(socket, adCli1);
-		printf("client 1 connecté\n");
+		printf("Client 1 connecté\n");
 		int sCli2 = acceptClient(socket, adCli2);
-		printf("client 2 connecté\n");
+		printf("Client 2 connecté\n");
 
 		/*
 			sending ID to clients
@@ -135,9 +121,9 @@ int main(int argc, char* argv[]) {
 		int confirm2 = sendID(sCli2, "1");
 
 		if(confirm1 || confirm2) {
-			printf("order sent successfully\n");
+			printf("Ordre envoyé\n");
 		} else {
-			printf("failed to send order\n");
+			printf("Envoi de l'ordre échoué\n");
 		}
 
 		/*fork to tend to multiple clients at a time*/

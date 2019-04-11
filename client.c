@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 
 #define MSG 256
+#define LIM "."
 
 /* rend adServ global */
 struct sockaddr_in adServ;
@@ -43,12 +44,79 @@ void readMsg(int socket, char* msg){
 	ssize_t rcv = recv(socket, msg, 256, 0);
 }
 
+/*
+	checkDigits : Char* -> Int
+	pre-requisites : IP given must not contain dots
+	checks if IP given in parameter has only digits
+	and not letters / other characters
+	returns 1 if correct IP, 0 if not
+*/
+int checkDigits(char *ip) {
+	while (*ip) {
+		if (*ip >= '0' && *ip <= '9') {
+			++ip;
+		} else {
+			return 0;
+		}
+	}
+	return 1;
+}
+
+/*
+	validIP : Char* -> Int
+	checks if IP given in parameter is a correct IP
+	returns 1 if correct IP, 0 if not
+*/
+int validIP(char *ip) {
+	int num, dots = 0;
+	char *ipDigits;
+
+	if (ip == NULL) {
+		return 0;
+	}
+
+	ipDigits = strtok(ip, LIM);
+
+	if (ipDigits == NULL) {
+		return 0;
+	}
+
+	while (ipDigits) {
+		if (!checkDigits(ipDigits)) {
+			return 0;
+		}
+
+		num = atoi(ipDigits);
+
+		if (num >= 0 && num <= 255) {
+			ipDigits = strtok(NULL, LIM);
+			if (ipDigits != NULL) {
+				++dots;
+			} 
+		} else {
+			return 0;
+		}
+	}
+
+	if (dots != 3) {
+		return 0;
+	}
+
+	return 1;
+}
+
 int main(int argc, char *argv[]) {
 
 	/* lors de l execution du programme il faut renseigner le port et l adresse ip
 	s il n y a pas le bon nombre d'argument on n execute pas le programme*/
 	if (argc != 3) {
 		printf("Pas le bon nombre d'arguments\n");
+		exit(0);
+	} else if(strlen(argv[1]) <= 4 || atoi(argv[1]) <= 1024) {
+		printf("Mauvais port\n");
+		exit(0);
+	} else if(!validIP(argv[2])) {
+		printf("Mauvaise adresse IP\n");
 		exit(0);
 	}
 
