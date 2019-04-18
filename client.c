@@ -6,6 +6,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <pthread.h>
 
 #define MSG 256
 #define LIM "."
@@ -27,7 +28,7 @@ int initSocket(int port, char* ip){
 	/*port*/
 	adServ.sin_port = htons(port);
 	/*Converts IPv4 addresses from text to binary form*/
-	int res = inet_pton(AF_INET, ip, &(adServ.sin_addr));
+	inet_pton(AF_INET, ip, &(adServ.sin_addr));
 	return sCli;
 }
 
@@ -48,13 +49,14 @@ int connection(int socket){
 	who will relay it towards a second client
 	returns the value returned by sender
 */
-int writeMsg(int socket){
+void *writeMsg(int socket){
 	char message[MSG];
-	fgets(message, MSG, stdin);
-	char *pos = strchr(message, '\n');
-	*pos = '\0';
-	ssize_t sender = send(socket, message, strlen(message)+1, 0);
-	return sender;
+	while(strcmp(message, "fin") != 0) {
+		fgets(message, MSG, stdin);
+		char *pos = strchr(message, '\n');
+		*pos = '\0';
+		send(socket, message, strlen(message)+1, 0);
+	}
 }
 
 /*
@@ -62,8 +64,12 @@ int writeMsg(int socket){
 	reads a written message from the server 
 	sent by a second client which is stored in msg
 */
-void readMsg(int socket, char* msg){
-	ssize_t rcv = recv(socket, msg, 256, 0);
+void *readMsg(int socket){
+	char *msg = malloc(256*sizeof(char));
+	while(strcmp(msg, "fin") != 0) {
+		recv(socket, msg, 256, 0);
+	}
+	free(msg);
 }
 
 /*
@@ -170,38 +176,22 @@ int main(int argc, char *argv[]) {
 		if 0 client is the first sender, if 1 client is the first receiver
 	*/
 	char msg[256];
-	readMsg(socket, msg);
-	
 
-	if (msg[0] == '0'){
-		/* 
-			first client to send
-			loops until "fin" has not been written or received
-		*/
-		while(strcmp(msg, "fin") != 0){
-			printf("Ecrivez votre message : ");
-			writeMsg(socket);
-			printf("Attente d'un message\n");
-			readMsg(socket, msg);
-			printf("Message recu : %s\n", msg);
-		}
-	}else{
-		/* 
-			first client to read
-			loops until "fin" has not been written or received 
-		*/
-		while(strcmp(msg, "fin") != 0){
-			printf("Attente d'un message\n");
-			readMsg(socket, msg);
-			printf("Message recu : %s\n", msg);
-			/* 
-				checks is received message has not been "fin" to avoid sending another message
-			*/
-			if(strcmp(msg, "fin") != 0){
-				printf("Ecrivez votre message : ");
-				writeMsg(socket);
-			}
-		}
+	pthread_t tWrite;
+	pthread_t tRead;
+
+	if (pthread_create(&tWrite, NULL, writeMsg, socket) == 0) {
+		printf("création thread client 1 ok\n");
+		pthread_exit(0);
+	} else {
+		printf("création du thread client 1 échouée\n");
+	} 
+
+	if(pthread_create(&tRead, NULL, readMsg, socket) == 0) {
+		printf("création thread client 2 ok\n");
+		pthread_exit(0);
+	} else {
+		printf("création du thread client 2 échouée\n");
 	}
 	/*  
 		closes the client's socket	
