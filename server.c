@@ -10,6 +10,12 @@
 
 #define MSG 124
 
+typedef struct forward_args {
+	int client1;
+	int client2;
+	int order;
+} forward_args;
+
 /*
 	initServer : Int x Int -> Int
 	Initializes the socket for the server with port and 
@@ -58,14 +64,22 @@ int acceptClient(int socketServ, struct sockaddr_in adCli) {
 	returns the value returned by recv
 */
 void* forwardMsg(void *args) {
+	int ack = 0;
 	forward_args *arguments = (forward_args *) args;
+	printf("(forward 1) ordre = %d\n", arguments->order);
 	char msgCli[MSG];
-	if (arguments->order = 0) {
-		ssize_t rcv = recv(arguments->client1, msgCli, MSG, 0);
-		ssize_t sender = send(arguments->client2, msgCli, strlen(msgCli)+1, 0);
-	} else {
-		ssize_t rcv = recv(arguments->client2, msgCli, MSG, 0);
-		ssize_t sender = send(arguments->client1, msgCli, strlen(msgCli)+1, 0);
+	while(ack == 0) {
+		if (arguments->order == 0) {
+			printf("(forward 2) ordre = %d\n", arguments->order);
+			ssize_t rcv = recv(arguments->client1, msgCli, MSG, 0);
+			ssize_t sender = send(arguments->client2, msgCli, strlen(msgCli)+1, 0);
+			ack = rcv;
+		} else {
+			printf("(forward 3) ordre = %d\n", arguments->order);
+			ssize_t rcv = recv(arguments->client2, msgCli, MSG, 0);
+			ssize_t sender = send(arguments->client1, msgCli, strlen(msgCli)+1, 0);
+			ack = rcv;
+		}	
 	}
 }
 
@@ -112,10 +126,6 @@ int main(int argc, char* argv[]) {
 	pthread_t forward2;
 	
 	while(1) {
-		/*
-			value to check if messages are still being sent
-		*/
-		int rcvStatus = 1;
 
 		int sCli1 = acceptClient(socket, adCli1);
 		printf("Client 1 connecté\n");
@@ -125,42 +135,37 @@ int main(int argc, char* argv[]) {
 			accepting the connection of the two clients
 		*/
 
-		typedef struct forward_args {
-			int client1;
-			int client2;
-			int order;
-		} forward_args;
-
 		forward_args *arguments = malloc (sizeof(forward_args));
 		arguments->client1 = sCli1;
 		arguments->client2 = sCli2;
 
-		while(rcvStatus) {
-			/*receiving message*/
-			printf("boucle 1 : creation des thread\n");
-			arguments->order = 0;
-			if (pthread_create(&forward1, NULL, forwardMsg, arguments) == 0) {
-				/*from client 1 to client 2*/
-				printf("forward 1\n");
-			} else {
-				printf("création du thread 1 échouée\n");
-			}
-
-			arguments->order = 1;
-			if (pthread_create(&forward2, NULL, forwardMsg, arguments) == 0) {
-				/*from client 2 to client 1*/
-				printf("forward 2\n");
-			} else {
-				printf("création du thread 2 échouée\n");
-			}
+		/*receiving message*/
+		printf("creation des thread\n");
+		arguments->order = 0;
+		printf("(main 1) ordre = %d\n", arguments->order);
+		if (pthread_create(&forward1, NULL, forwardMsg, arguments) == 0) {
+			/*from client 1 to client 2*/
+			printf("forward 1\n");
+		} else {
+			printf("création du thread 1 échouée\n");
 		}
+		printf("(main 2) ordre = %d\n", arguments->order);
+		arguments->order = 1;
+		printf("(main 3) ordre = %d\n", arguments->order);
+		if (pthread_create(&forward2, NULL, forwardMsg, arguments) == 0) {
+			/*from client 2 to client 1*/
+			printf("forward 2\n");
+		} else {
+			printf("création du thread 2 échouée\n");
+		}
+		printf("(main 4) ordre = %d\n", arguments->order);
 
 		/*
 			closes the sockets for each client
 		*/
 		close(sCli1);
 		close(sCli2);
-		exit(0);
+		// exit(0);
 	} 
 	close(socket);
 }
