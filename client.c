@@ -16,6 +16,10 @@ struct sockaddr_in adServ;
 
 int ack = 1;
 
+pthread_t t_file;
+
+int socket;
+
 /*
 	initSocket : Int x Int -> Int
 	Initializes the socket for the client
@@ -45,16 +49,63 @@ int connection(int socket){
 	return res;
 }
 
+void fileReceiver() {
+	char fileName[MSG];
+	char command[MSG];
+	char fileContent[MSG];
+	recv(socket, fileName, strlen(fileName)+1, 0);
+	sprintf(command, "cd Telecharge && touch %s", fileName);
+	system(command);
+	FILE *fd;
+	fd = fopen(fileName, "w");
+	while(strcmp(fileContent, EOF) != 0) {
+		recv(socket, fileContent, MSG, 0);
+		fprintf(fd, "%s", fileContent);
+	}
+}
+
+void fileSender(char *file) {
+	FILE *fd;
+	fd = fopen(file, "r");
+	while (fd == NULL) {
+		printf("Mauvais nom de fichier\n");
+		printf("Entrer un nom de fichier : \n");
+		fgets(file, MSG, stdin);
+		fd = fopen(file, "r");
+	}
+	send(socket, file, strlen(file)+1, 0);
+	while((ch = fgetc(fd)) != EOF) {
+		send(socket, (char *) ch, strlen((char *) ch), 0);
+	}
+	send(socket, EOF, strlen(EOF), 0);
+}
+
+void *fileHandler() {
+	char fileName[MSG];
+	printf("Choisissez un fichier :\n");
+	system("cd Transfere/ && ls");
+	fgets(fileName, MSG, stdin);
+	char *pos = strchr(message, '\n');
+	*pos = '\0';
+	fileSender(fileName);
+}
+
 /*
 	writeMsg : Int -> Int
 	sends a written message to a given socket to server 
 	who will relay it towards a second client
 	returns the value returned by sender
 */
-void *writeMsg(int socket){
+void *writeMsg(){
 	char message[MSG];
 	while(strcmp(message, "fin") != 0 && ack == 1) {
 		fgets(message, MSG, stdin);
+		if(strcmp(message, "file") == 0) {
+			send(socket, "file", strlen("file")+1, 0);
+			if(pthread_create(&t_file, NULL, fileHandler, 0) != 0) {
+				printf("échec de création du thread fichier\n");
+			}
+		}
 		char *pos = strchr(message, '\n');
 		*pos = '\0';
 		send(socket, message, strlen(message)+1, 0);
@@ -68,10 +119,10 @@ void *writeMsg(int socket){
 	reads a written message from the server 
 	sent by a second client which is stored in msg
 */
-void *readMsg(int socket){
-	char *msg = malloc(256*sizeof(char));
+void *readMsg(){
+	char *msg = malloc(MSG*sizeof(char));
 	while(strcmp(msg, "fin") != 0 && ack == 1) {
-		recv(socket, msg, 256, 0);
+		recv(socket, msg, MSG, 0);
 		printf("Message reçu : %s\n", msg);
 	}
 	send(socket, "fin", strlen("fin")+1, 0);
@@ -168,7 +219,7 @@ int main(int argc, char *argv[]) {
 	/*
 		socket intialisation with port and ip given in argument call
 	*/
-	int socket = initSocket(atoi(port), ip);
+	socket = initSocket(atoi(port), ip);
 	
 	/*
 		checks if connection has been made
@@ -187,13 +238,13 @@ int main(int argc, char *argv[]) {
 	pthread_t tWrite;
 	pthread_t tRead;
 
-	if (pthread_create(&tWrite, NULL, writeMsg, socket) == 0) {
+	if (pthread_create(&tWrite, NULL, writeMsg, NULL) == 0) {
 		printf("création thread client 1 ok\n");
 	} else {
 		printf("création du thread client 1 échouée\n");
 	} 
 
-	if(pthread_create(&tRead, NULL, readMsg, socket) == 0) {
+	if(pthread_create(&tRead, NULL, readMsg, NULL) == 0) {
 		printf("création thread client 2 ok\n");
 	} else {
 		printf("création du thread client 2 échouée\n");
