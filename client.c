@@ -16,9 +16,9 @@ struct sockaddr_in adServ;
 
 int ack = 1;
 
-pthread_t t_file;
+int socketActif;
 
-int socket;
+//pthread_t tFile;
 
 /*
 	initSocket : Int x Int -> Int
@@ -43,9 +43,9 @@ int initSocket(int port, char* ip){
 	connects client to server by its socket
 	returns 0 if connected, 1 if not
 */
-int connection(int socket){
+int connection(){
 	socklen_t lgA = sizeof(struct sockaddr_in);
-	int res = connect(socket, (struct sockaddr*)&adServ, lgA);
+	int res = connect(socketActif, (struct sockaddr*)&adServ, lgA);
 	return res;
 }
 
@@ -53,39 +53,58 @@ void fileReceiver() {
 	char fileName[MSG];
 	char command[MSG];
 	char fileContent[MSG];
-	recv(socket, fileName, strlen(fileName)+1, 0);
+	//recois le nom du fichier
+	recv(socketActif, fileName, MSG, 0);
 	sprintf(command, "cd Telecharge && touch %s", fileName);
 	system(command);
+	char route[MSG];
 	FILE *fd;
-	fd = fopen(fileName, "w");
-	while(strcmp(fileContent, EOF) != 0) {
-		recv(socket, fileContent, MSG, 0);
-		fprintf(fd, "%s", fileContent);
-	}
+	sprintf(route, "Telecharge/%s", fileName);
+	fd = fopen(route, "w");
+	//recois le contenu du fichier
+	recv(socketActif, fileContent, MSG, 0);
+	fprintf(fd, "%s", fileContent);
+	fclose(fd);
+	printf("Fichier : %s reçu\n", fileName);
 }
 
 void fileSender(char *file) {
 	FILE *fd;
-	fd = fopen(file, "r");
+	char route[MSG];
+	sprintf(route, "Transfere/%s", file);
+	fd = fopen(route, "r");
 	while (fd == NULL) {
 		printf("Mauvais nom de fichier\n");
+		system("cd Transfere/ && ls");
+		printf("%s\n", file);
 		printf("Entrer un nom de fichier : \n");
 		fgets(file, MSG, stdin);
-		fd = fopen(file, "r");
+		char *pos = strchr(file, '\n');
+		*pos = '\0';
+		sprintf(route, "Transfere/%s", file);
+		fd = fopen(route, "r");
 	}
-	send(socket, file, strlen(file)+1, 0);
-	while((ch = fgetc(fd)) != EOF) {
-		send(socket, (char *) ch, strlen((char *) ch), 0);
-	}
-	send(socket, EOF, strlen(EOF), 0);
+	//Envoi le nom du fichier
+	send(socketActif, file, strlen(file)+1, 0);
+	fseek(fd, 0, SEEK_END);
+	long fsize = ftell(fd);
+	fseek(fd, 0, SEEK_SET);
+	char *content = malloc(fsize + 1);
+	fread(content, 1, fsize, fd);;
+	//Envoi le contenu du fichier
+	send(socketActif, content, strlen(content)+1, 0);
+	fclose(fd);
+	free(content);
+	printf("Fichier envoyé\n");
+	//pthread_exit(0);
 }
 
-void *fileHandler() {
+void fileHandler() {
 	char fileName[MSG];
 	printf("Choisissez un fichier :\n");
 	system("cd Transfere/ && ls");
 	fgets(fileName, MSG, stdin);
-	char *pos = strchr(message, '\n');
+	char *pos = strchr(fileName, '\n');
 	*pos = '\0';
 	fileSender(fileName);
 }
@@ -100,15 +119,19 @@ void *writeMsg(){
 	char message[MSG];
 	while(strcmp(message, "fin") != 0 && ack == 1) {
 		fgets(message, MSG, stdin);
-		if(strcmp(message, "file") == 0) {
-			send(socket, "file", strlen("file")+1, 0);
-			if(pthread_create(&t_file, NULL, fileHandler, 0) != 0) {
-				printf("échec de création du thread fichier\n");
-			}
-		}
 		char *pos = strchr(message, '\n');
 		*pos = '\0';
-		send(socket, message, strlen(message)+1, 0);
+		if(strcmp(message, "file") == 0) {
+			//Envoi le mot "file"
+			send(socketActif, message, strlen(message)+1, 0);
+			fileHandler();
+			/*if (pthread_create(&tFile, NULL, fileHandler, NULL) == 0) {
+				printf("création thread File ok\n");
+			} else {
+				printf("création du thread File échouée\n");
+			} */
+		}
+		send(socketActif, message, strlen(message)+1, 0);
 	}
 	ack = 0;
 	pthread_exit(0);
@@ -120,12 +143,16 @@ void *writeMsg(){
 	sent by a second client which is stored in msg
 */
 void *readMsg(){
-	char *msg = malloc(MSG*sizeof(char));
+	char *msg = malloc(256*sizeof(char));
 	while(strcmp(msg, "fin") != 0 && ack == 1) {
-		recv(socket, msg, MSG, 0);
+		recv(socketActif, msg, 256, 0);
+		if(strcmp(msg, "file") == 0) {
+			fileReceiver();
+		}else{
 		printf("Message reçu : %s\n", msg);
+		}
 	}
-	send(socket, "fin", strlen("fin")+1, 0);
+	send(socketActif, "fin", strlen("fin")+1, 0);
 	ack = 0;
 	free(msg);
 	pthread_exit(0);
@@ -196,13 +223,16 @@ int main(int argc, char *argv[]) {
 
 	/*check if port and ip were given in arguments*/
 	if (argc != 3) {
-		printf("Pas le bon nombre d'arguments\n");
+		printf("Pas le bon nombre d'arguments :\n");
+		printf("./client [port] [ip]\n");
 		exit(0);
 	} else if(strlen(argv[1]) <= 4 || atoi(argv[1]) <= 1024) {
-		printf("Mauvais port\n");
+		printf("Mauvais port :\n");
+		printf("./client [port] [ip]\n");
 		exit(0);
 	} else if(!validIP(argv[2])) {
-		printf("Mauvaise adresse IP\n");
+		printf("Mauvaise adresse IP :\n");
+		printf("./client [port] [ip]\n");
 		exit(0);
 	}
 
@@ -219,12 +249,12 @@ int main(int argc, char *argv[]) {
 	/*
 		socket intialisation with port and ip given in argument call
 	*/
-	socket = initSocket(atoi(port), ip);
+	socketActif = initSocket(atoi(port), ip);
 	
 	/*
 		checks if connection has been made
 	*/
-	if (connection(socket) == 0){
+	if (connection() == 0){
 		printf("Connexion réussie \n");
 	} else{
 		printf("Connexion échouée \n");exit(0);
@@ -239,22 +269,24 @@ int main(int argc, char *argv[]) {
 	pthread_t tRead;
 
 	if (pthread_create(&tWrite, NULL, writeMsg, NULL) == 0) {
-		printf("création thread client 1 ok\n");
+		printf("création thread Write ok\n");
 	} else {
-		printf("création du thread client 1 échouée\n");
+		printf("création du thread Write échouée\n");
 	} 
 
 	if(pthread_create(&tRead, NULL, readMsg, NULL) == 0) {
-		printf("création thread client 2 ok\n");
+		printf("création thread Read ok\n");
 	} else {
-		printf("création du thread client 2 échouée\n");
+		printf("création du thread Read échouée\n");
 	}
 	/*  
 		closes the client's socket	
 	*/
 	pthread_join(tWrite, NULL);
 	pthread_join(tRead, NULL);
+	//pthread_join(tFile, NULL);
 	pthread_cancel(tWrite);
 	pthread_cancel(tRead);
-	close(socket);
+	//pthread_cancel(tFile);
+	close(socketActif);
 }

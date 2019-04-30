@@ -15,8 +15,6 @@ int sCli2;
 
 int ack = 1;
 
-pthread_t t_file;
-
 /*
 	initServer : Int x Int -> Int
 	Initializes the socket for the server with port and 
@@ -40,10 +38,10 @@ int initServer(int port, int nbClients) {
 	ad.sin_port = htons((short)port);
 
 	/*naming the server*/
-	int res = bind(sServ, (struct sockaddr*)&ad, sizeof(ad));
+	bind(sServ, (struct sockaddr*)&ad, sizeof(ad));
 
 	/*wait for clients*/
-	int ear = listen(sServ, nbClients);
+	listen(sServ, nbClients);
 	return sServ;
 }
 
@@ -69,38 +67,50 @@ void* forwardMsg(int ordre) {
 	while(ack != 0) {
 		if (ordre == 0) {
 			recv(sCli1, msgCli, MSG, 0);
-			printf("Message reçu de %d : %s\n", sCli1, msgCli);
 			if(strcmp(msgCli, "fin") == 0) {
 				send(sCli2, "fin", strlen("fin")+1, 0);
 				ack = 0;
-			} else if(strcmp(msgCli, "file") == 0) {
-				//TODO envoyer le mot file, envoyer le nom du fichier
-				while(strcmp(msgCli, EOF) != 0) {
-					recv(sCli1, msgCli, MSG, 0);
-					send(sCli2, msgCli, strlen(msgCli), 0);
-				}
-			} else {
+			}else if(strcmp(msgCli, "file") == 0) {
+				//Envoi le mot file
+				send(sCli2, msgCli, strlen(msgCli), 0);
+				printf("envoie du mot : %s\n", msgCli);
+				//Envoi le nom du fichier
+				recv(sCli1, msgCli, MSG, 0);
+				printf("nomfichier reçu : %s\n", msgCli);
+				send(sCli2, msgCli, strlen(msgCli), 0);
+				printf("nomfichier envoyé : %s\n", msgCli);
+				//Envoi le contenu du fichier
+				recv(sCli1, msgCli, MSG, 0);
+				printf("contenu reçu : %s\n", msgCli);
+				send(sCli2, msgCli, strlen(msgCli), 0);
+				printf("contenu envoyé : %s\n", msgCli);
+			}else {
 				send(sCli2, msgCli, strlen(msgCli)+1, 0);
-				printf("Message forward vers %d : %s\n", sCli2, msgCli);
 			}
 		} else {
 			recv(sCli2, msgCli, MSG, 0);
-			printf("Message reçu de %d : %s\n", sCli2, msgCli);
 			if(strcmp(msgCli, "fin") == 0) {
 				send(sCli1, "fin", strlen("fin")+1, 0);
 				ack = 0;
-			} else if(strcmp(msgCli, "file") == 0) {
-				while(strcmp(msgCli, EOF) != 0) {
-					recv(sCli1, msgCli, MSG, 0);
-					send(sCli2, msgCli, strlen(msgCli), 0);
-				}
-			} else {
+			}else if(strcmp(msgCli, "file") == 0) {
+				//Envoi le mot file
+				send(sCli1, msgCli, strlen(msgCli), 0);
+				printf("envoie du mot : %s\n", msgCli);
+				//Envoi le nom du fichier
+				recv(sCli2, msgCli, MSG, 0);
+				printf("nomfichier reçu : %s\n", msgCli);
+				send(sCli1, msgCli, strlen(msgCli), 0);
+				printf("nomfichier envoyé : %s\n", msgCli);
+				//Envoi le contenu du fichier
+				recv(sCli2, msgCli, MSG, 0);
+				printf("contenu reçu : %s\n", msgCli);
+				send(sCli1, msgCli, strlen(msgCli), 0);
+				printf("contenu envoyé : %s\n", msgCli);
+			}else {
 				send(sCli1, msgCli, strlen(msgCli)+1, 0);
-				printf("Message forward vers %d : %s\n", sCli1, msgCli);
 			}
 		}
 	}
-	printf("n'importequoi\n");
 	pthread_exit(0);
 }
 
@@ -119,10 +129,12 @@ int main(int argc, char* argv[]) {
 		check if port is given in arguments
 	*/
 	if(argc != 2) { 
-		printf("Pas le bon nombre d'arguments\n");
+		printf("Pas le bon nombre d'arguments :\n");
+		printf("./server [port]\n");
 		exit(0);
 	} else if(strlen(argv[1]) <= 4 || atoi(argv[1]) <= 1024) {
-		printf("Mauvais port\n");
+		printf("Mauvais port :\n");
+		printf("./server [port]\n");
 		exit(0);
 	}
 
@@ -145,6 +157,7 @@ int main(int argc, char* argv[]) {
 	printf("déclaration des thread\n");
 	pthread_t forward1;
 	pthread_t forward2;
+	pthread_t t_file;
 	
 	while(1) {
 
@@ -156,21 +169,18 @@ int main(int argc, char* argv[]) {
 			accepting the connection of the two clients
 		*/
 
-		/*receiving message*/
-		printf("creation des thread\n");
-
 		if (pthread_create(&forward1, NULL, forwardMsg, 0) == 0) {
 			/*from client 1 to client 2*/
-			printf("forward 1\n");
+			printf("Création du thread forward1 ok\n");
 		} else {
-			printf("création du thread 1 échouée\n");
+			printf("Création du thread forward1 échouée\n");
 		}
 
 		if (pthread_create(&forward2, NULL, forwardMsg, 1) == 0) {
 			/*from client 2 to client 1*/
-			printf("forward 2\n");
+			printf("Création du thread forward2 ok\n");
 		} else {
-			printf("création du thread 2 échouée\n");
+			printf("Création du thread forward2 échouée\n");
 		}
 
 		/*
