@@ -18,9 +18,6 @@ int ack = 1;
 
 int socketActif;
 
-pthread_t readerT;
-pthread_t writerT;
-
 //pthread_t tFile;
 
 /*
@@ -52,19 +49,11 @@ int connection(){
 	return res;
 }
 
-/*
-	fileReceiver :
-	handles the reception of file sent by other client
-	creates the file with the given name sent by other client
-	downloads the content of the file sent by other client
-*/
-
-void* fileReceiver() {
+void fileReceiver() {
 	char fileName[MSG];
 	char command[MSG];
 	char fileContent[MSG];
-
-	//recoit le nom du fichier
+	//recois le nom du fichier
 	recv(socketActif, fileName, MSG, 0);
 	sprintf(command, "cd Telecharge && touch %s", fileName);
 	system(command);
@@ -72,41 +61,18 @@ void* fileReceiver() {
 	FILE *fd;
 	sprintf(route, "Telecharge/%s", fileName);
 	fd = fopen(route, "w");
-
-	//recoit le contenu du fichier
+	//recois le contenu du fichier
 	recv(socketActif, fileContent, MSG, 0);
 	fprintf(fd, "%s", fileContent);
 	fclose(fd);
 	printf("Fichier : %s reçu\n", fileName);
-
-	pthread_exit(0);
 }
 
-/*
-	fileSender :
-	handles the process to send a file to another client
-	displays available files to send to be selected by client
-	sends the file name to other client
-	sends the content of the file to other client
-*/
-
-void* fileSender() {
-	char file[MSG];
-	printf("Choisissez un fichier :\n");
-	system("cd Transfere/ && ls");
-	printf("fileSender(0)\n");
-	fgets(file, MSG, stdin);
-	printf("fileSender (1)\n");
-	char *pos = strchr(file, '\n');
-	*pos = '\0';
-
-	printf("file name : %s\n", file);
-
+void fileSender(char *file) {
 	FILE *fd;
 	char route[MSG];
 	sprintf(route, "Transfere/%s", file);
 	fd = fopen(route, "r");
-
 	while (fd == NULL) {
 		printf("Mauvais nom de fichier\n");
 		system("cd Transfere/ && ls");
@@ -118,25 +84,30 @@ void* fileSender() {
 		sprintf(route, "Transfere/%s", file);
 		fd = fopen(route, "r");
 	}
-
-	//Envoie le nom du fichier
+	//Envoi le nom du fichier
 	send(socketActif, file, strlen(file)+1, 0);
 	fseek(fd, 0, SEEK_END);
 	long fsize = ftell(fd);
 	fseek(fd, 0, SEEK_SET);
 	char *content = malloc(fsize + 1);
-	fread(content, 1, fsize, fd);
-
-	//Envoie le contenu du fichier
+	fread(content, 1, fsize, fd);;
+	//Envoi le contenu du fichier
 	send(socketActif, content, strlen(content)+1, 0);
 	fclose(fd);
 	free(content);
-	// free(file);
-	printf("(Fichier envoyé)\n");
-
-	pthread_exit(0);
+	printf("Fichier envoyé\n");
+	//pthread_exit(0);
 }
 
+void fileHandler() {
+	char fileName[MSG];
+	printf("Choisissez un fichier :\n");
+	system("cd Transfere/ && ls");
+	fgets(fileName, MSG, stdin);
+	char *pos = strchr(fileName, '\n');
+	*pos = '\0';
+	fileSender(fileName);
+}
 
 /*
 	writeMsg : Int -> Int
@@ -153,16 +124,17 @@ void *writeMsg(){
 		if(strcmp(message, "file") == 0) {
 			//Envoi le mot "file"
 			send(socketActif, message, strlen(message)+1, 0);
-			if (pthread_create(&writerT, NULL, fileSender, 0) == 0) {
-				printf("création thread File Write ok\n");
+			fileHandler();
+			/*if (pthread_create(&tFile, NULL, fileHandler, NULL) == 0) {
+				printf("création thread File ok\n");
 			} else {
 				printf("création du thread File échouée\n");
-			} 
+			} */
 		}
 		send(socketActif, message, strlen(message)+1, 0);
 	}
 	ack = 0;
-	// pthread_exit(0);
+	pthread_exit(0);
 }
 
 /*
@@ -171,23 +143,19 @@ void *writeMsg(){
 	sent by a second client which is stored in msg
 */
 void *readMsg(){
-	char msg[MSG];
+	char *msg = malloc(256*sizeof(char));
 	while(strcmp(msg, "fin") != 0 && ack == 1) {
 		recv(socketActif, msg, 256, 0);
 		if(strcmp(msg, "file") == 0) {
-			if (pthread_create(&readerT, NULL, fileReceiver, 0) == 0) {
-				printf("création thread File Read ok\n");
-			} else {
-				printf("création du thread File échouée\n");
-			}
+			fileReceiver();
 		}else{
-			printf("Message reçu : %s\n", msg);
+		printf("Message reçu : %s\n", msg);
 		}
 	}
 	send(socketActif, "fin", strlen("fin")+1, 0);
 	ack = 0;
-	// free(msg);
-	// pthread_exit(0);
+	free(msg);
+	pthread_exit(0);
 }
 
 /*
@@ -258,7 +226,7 @@ int main(int argc, char *argv[]) {
 		printf("Pas le bon nombre d'arguments :\n");
 		printf("./client [port] [ip]\n");
 		exit(0);
-	} else if(strlen(argv[1]) < 4 || atoi(argv[1]) <= 1024) {
+	} else if(strlen(argv[1]) <= 4 || atoi(argv[1]) <= 1024) {
 		printf("Mauvais port :\n");
 		printf("./client [port] [ip]\n");
 		exit(0);
@@ -292,6 +260,11 @@ int main(int argc, char *argv[]) {
 		printf("Connexion échouée \n");exit(0);
 	}
 
+	/*
+		reading ID order sent by the server
+		if 0 client is the first sender, if 1 client is the first receiver
+	*/
+
 	pthread_t tWrite;
 	pthread_t tRead;
 
@@ -311,7 +284,9 @@ int main(int argc, char *argv[]) {
 	*/
 	pthread_join(tWrite, NULL);
 	pthread_join(tRead, NULL);
+	//pthread_join(tFile, NULL);
 	pthread_cancel(tWrite);
 	pthread_cancel(tRead);
+	//pthread_cancel(tFile);
 	close(socketActif);
 }
