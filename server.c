@@ -68,6 +68,7 @@ void* fileForward(int ordre) {
 		sender = sCli2;
 		receiver = sCli1;
 	}
+	
 	//Envoi le mot file
 	send(receiver, msgCli, strlen(msgCli), 0);
 	printf("envoi du mot : %s\n", msgCli);
@@ -110,20 +111,18 @@ void* forwardMsg(int ordre) {
 	}
 	
 	while(ack != 0) {
-		if (ordre == 0) {
-			recv(sender, msgCli, MSG, 0);
-			if(strcmp(msgCli, "fin") == 0) {
-				send(receiver, "fin", strlen("fin")+1, 0);
-				ack = 0;
-			} else if(strcmp(msgCli, "file") == 0) {
-				if (pthread_create(&fileF1, NULL, fileForward, ordre) == 0) {
-					printf("création thread fileForward 1 OK\n");
-				} else {
-					printf("création du thread File échouée\n");
-				}
-			}else {
-				send(receiver, msgCli, strlen(msgCli)+1, 0);
+		recv(sender, msgCli, MSG, 0);
+		if(strcmp(msgCli, "fin") == 0) {
+			send(receiver, "fin", strlen("fin")+1, 0);
+			ack = 0;
+		} else if(strcmp(msgCli, "file") == 0) {
+			if (pthread_create(&fileF1, NULL, fileForward, ordre) == 0) {
+				printf("création thread fileForward 1 OK\n");
+			} else {
+				printf("création du thread File échouée\n");
 			}
+		}else {
+			send(receiver, msgCli, strlen(msgCli)+1, 0);
 		}
 	}
 	pthread_join(fileF2, NULL);

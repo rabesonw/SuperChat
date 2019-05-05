@@ -18,6 +18,9 @@ int ack = 1;
 
 int socketActif;
 
+pthread_t readerT;
+pthread_t writerT;
+
 //pthread_t tFile;
 
 /*
@@ -86,8 +89,8 @@ void* fileSender() {
 	printf("Choisissez un fichier :\n");
 	system("cd Transfere/ && ls");
 	fgets(file, MSG, stdin);
-	// char *pos = strchr(file, '\n');
-	// *pos = '\0';
+	char *pos = strchr(file, '\n');
+	*pos = '\0';
 
 	printf("file name : %s\n", file);
 
@@ -122,6 +125,7 @@ void* fileSender() {
 	free(content);
 	free(file);
 	printf("(Fichier envoyé)\n");
+
 	pthread_exit(0);
 }
 
@@ -133,7 +137,6 @@ void* fileSender() {
 	returns the value returned by sender
 */
 void *writeMsg(){
-	pthread_t writerT;
 	char message[MSG];
 	while(strcmp(message, "fin") != 0 && ack == 1) {
 		fgets(message, MSG, stdin);
@@ -143,7 +146,7 @@ void *writeMsg(){
 			//Envoi le mot "file"
 			send(socketActif, message, strlen(message)+1, 0);
 			if (pthread_create(&writerT, NULL, fileSender, 0) == 0) {
-				printf("création thread File ok\n");
+				printf("création thread File Write ok\n");
 			} else {
 				printf("création du thread File échouée\n");
 			} 
@@ -160,13 +163,12 @@ void *writeMsg(){
 	sent by a second client which is stored in msg
 */
 void *readMsg(){
-	pthread_t readerT;
 	char *msg = malloc(256*sizeof(char));
 	while(strcmp(msg, "fin") != 0 && ack == 1) {
 		recv(socketActif, msg, 256, 0);
 		if(strcmp(msg, "file") == 0) {
 			if (pthread_create(&readerT, NULL, fileReceiver, 0) == 0) {
-				printf("création thread File ok\n");
+				printf("création thread File Read ok\n");
 			} else {
 				printf("création du thread File échouée\n");
 			} 
