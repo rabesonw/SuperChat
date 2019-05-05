@@ -15,6 +15,8 @@ int sCli2;
 
 int ack = 1;
 
+char msgCli[MSG];
+
 /*
 	initServer : Int x Int -> Int
 	Initializes the socket for the server with port and 
@@ -56,6 +58,35 @@ int acceptClient(int socketServ, struct sockaddr_in adCli) {
 	return sCli;
 }
 
+void* fileForward(int ordre) {
+	int sender;
+	int receiver;
+	if (ordre == 0) {
+		sender = sCli1;
+		receiver = sCli2;
+	} else {
+		sender = sCli2;
+		receiver = sCli1;
+	}
+	//Envoi le mot file
+	send(receiver, msgCli, strlen(msgCli), 0);
+	printf("envoi du mot : %s\n", msgCli);
+
+	//Envoi le nom du fichier
+	recv(sender, msgCli, MSG, 0);
+	printf("nomfichier reçu : %s\n", msgCli);
+	send(receiver, msgCli, strlen(msgCli), 0);
+	printf("nomfichier envoyé : %s\n", msgCli);
+
+	//Envoi le contenu du fichier
+	recv(sender, msgCli, MSG, 0);
+	printf("contenu reçu : %s\n", msgCli);
+	send(receiver, msgCli, strlen(msgCli), 0);
+	printf("contenu envoyé : %s\n", msgCli);
+
+	pthread_exit(0);
+}
+
 /*
 	forwardMsg : Int x Int -> Int
 	forwards a message received from a first client given in first parameter
@@ -63,54 +94,42 @@ int acceptClient(int socketServ, struct sockaddr_in adCli) {
 	returns the value returned by recv
 */
 void* forwardMsg(int ordre) {
-	char msgCli[MSG];
+	int sender;
+	int receiver;
+
+	pthread_t fileF1;
+	pthread_t fileF2;
+	// char msgCli[MSG];
+
+	if (ordre == 0) {
+		sender = sCli1;
+		receiver = sCli2;
+	} else {
+		sender = sCli2;
+		receiver = sCli1;
+	}
+	
 	while(ack != 0) {
 		if (ordre == 0) {
-			recv(sCli1, msgCli, MSG, 0);
+			recv(sender, msgCli, MSG, 0);
 			if(strcmp(msgCli, "fin") == 0) {
-				send(sCli2, "fin", strlen("fin")+1, 0);
+				send(receiver, "fin", strlen("fin")+1, 0);
 				ack = 0;
-			}else if(strcmp(msgCli, "file") == 0) {
-				//Envoi le mot file
-				send(sCli2, msgCli, strlen(msgCli), 0);
-				printf("envoie du mot : %s\n", msgCli);
-				//Envoi le nom du fichier
-				recv(sCli1, msgCli, MSG, 0);
-				printf("nomfichier reçu : %s\n", msgCli);
-				send(sCli2, msgCli, strlen(msgCli), 0);
-				printf("nomfichier envoyé : %s\n", msgCli);
-				//Envoi le contenu du fichier
-				recv(sCli1, msgCli, MSG, 0);
-				printf("contenu reçu : %s\n", msgCli);
-				send(sCli2, msgCli, strlen(msgCli), 0);
-				printf("contenu envoyé : %s\n", msgCli);
+			} else if(strcmp(msgCli, "file") == 0) {
+				if (pthread_create(&fileF1, NULL, fileForward, ordre) == 0) {
+					printf("création thread fileForward 1 OK\n");
+				} else {
+					printf("création du thread File échouée\n");
+				}
 			}else {
-				send(sCli2, msgCli, strlen(msgCli)+1, 0);
-			}
-		} else {
-			recv(sCli2, msgCli, MSG, 0);
-			if(strcmp(msgCli, "fin") == 0) {
-				send(sCli1, "fin", strlen("fin")+1, 0);
-				ack = 0;
-			}else if(strcmp(msgCli, "file") == 0) {
-				//Envoi le mot file
-				send(sCli1, msgCli, strlen(msgCli), 0);
-				printf("envoie du mot : %s\n", msgCli);
-				//Envoi le nom du fichier
-				recv(sCli2, msgCli, MSG, 0);
-				printf("nomfichier reçu : %s\n", msgCli);
-				send(sCli1, msgCli, strlen(msgCli), 0);
-				printf("nomfichier envoyé : %s\n", msgCli);
-				//Envoi le contenu du fichier
-				recv(sCli2, msgCli, MSG, 0);
-				printf("contenu reçu : %s\n", msgCli);
-				send(sCli1, msgCli, strlen(msgCli), 0);
-				printf("contenu envoyé : %s\n", msgCli);
-			}else {
-				send(sCli1, msgCli, strlen(msgCli)+1, 0);
+				send(receiver, msgCli, strlen(msgCli)+1, 0);
 			}
 		}
 	}
+	pthread_join(fileF2, NULL);
+	pthread_join(fileF1, NULL);
+	pthread_cancel(fileF1);
+	pthread_cancel(fileF2);
 	pthread_exit(0);
 }
 
@@ -157,7 +176,6 @@ int main(int argc, char* argv[]) {
 	printf("déclaration des thread\n");
 	pthread_t forward1;
 	pthread_t forward2;
-	pthread_t t_file;
 	
 	while(1) {
 
