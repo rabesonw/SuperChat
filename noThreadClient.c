@@ -18,8 +18,6 @@ int ack = 1;
 
 int socketActif;
 
-//pthread_t tFile;
-
 /*
 	initSocket : Int x Int -> Int
 	Initializes the socket for the client

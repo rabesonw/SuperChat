@@ -15,6 +15,15 @@ int sCli2;
 
 int ack = 1;
 
+//struct for chat handling
+//TODO
+typedef struct chatRoom {
+	char* chatName;
+	char* chatDesc;
+	int limit;
+	int clients[limit];
+} chatRoom;
+
 /*
 	initServer : Int x Int -> Int
 	Initializes the socket for the server with port and 
@@ -43,6 +52,15 @@ int initServer(int port, int nbClients) {
 	/*wait for clients*/
 	listen(sServ, nbClients);
 	return sServ;
+}
+
+/*
+	createChatRoom : String x String x Int -> chatRoom
+	creates a new chat room using the global struct chatRoom
+	returns a chatRoom struct
+*/
+chatRoom createChatRoom(char* chatName, char* chatDesc, int limit) {
+ //TODO
 }
 
 /*
