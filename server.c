@@ -81,43 +81,6 @@ int acceptClient(int socketServ, struct sockaddr_in adCli) {
 }
 
 /*
-	fileForward : Int -> Pointer
-	handles file selection and file exchange
-	from a client to another
-*/
-
-void* fileForward(int ordre) {
-	char msgCli[MSG];
-	int sender;
-	int receiver;
-	if (ordre == 0) {
-		sender = sCli1;
-		receiver = sCli2;
-	} else {
-		sender = sCli2;
-		receiver = sCli1;
-	}
-	
-	//Envoi le mot file
-	send(receiver, "file", strlen("file"), 0);
-	printf("envoi du mot : file\n");
-
-	//Envoi le nom du fichier
-	recv(sender, msgCli, MSG, 0);
-	printf("nomfichier reçu : %s\n", msgCli);
-	send(receiver, msgCli, strlen(msgCli), 0);
-	printf("nomfichier envoyé : %s\n", msgCli);
-
-	//Envoi le contenu du fichier
-	recv(sender, msgCli, MSG, 0);
-	printf("contenu reçu : %s\n", msgCli);
-	send(receiver, msgCli, strlen(msgCli), 0);
-	printf("contenu envoyé : %s\n", msgCli);
-
-	pthread_exit(0);
-}
-
-/*
 	forwardMsg : Int x Int -> Pointer
 	forwards a message received from a first client given in first parameter
 	towards clients in the same channel as client given in parameter

@@ -21,8 +21,6 @@ int socketActif;
 pthread_t readerT;
 pthread_t writerT;
 
-//pthread_t tFile;
-
 /*
 	initSocket : Int x Int -> Int
 	Initializes the socket for the client
@@ -53,92 +51,6 @@ int connection(){
 }
 
 /*
-	fileReceiver :
-	handles the reception of file sent by other client
-	creates the file with the given name sent by other client
-	downloads the content of the file sent by other client
-*/
-
-void* fileReceiver() {
-	char fileName[MSG];
-	char command[MSG];
-	char fileContent[MSG];
-
-	//recoit le nom du fichier
-	recv(socketActif, fileName, MSG, 0);
-	sprintf(command, "cd Telecharge && touch %s", fileName);
-	system(command);
-	char route[MSG];
-	FILE *fd;
-	sprintf(route, "Telecharge/%s", fileName);
-	fd = fopen(route, "w");
-
-	//recoit le contenu du fichier
-	recv(socketActif, fileContent, MSG, 0);
-	fprintf(fd, "%s", fileContent);
-	fclose(fd);
-	printf("Fichier : %s reçu\n", fileName);
-
-	pthread_exit(0);
-}
-
-/*
-	fileSender :
-	handles the process to send a file to another client
-	displays available files to send to be selected by client
-	sends the file name to other client
-	sends the content of the file to other client
-*/
-
-void* fileSender() {
-	char file[MSG];
-	printf("Choisissez un fichier :\n");
-	system("cd Transfere/ && ls");
-	printf("fileSender(0)\n");
-	fgets(file, MSG, stdin);
-	printf("fileSender (1)\n");
-	char *pos = strchr(file, '\n');
-	*pos = '\0';
-
-	printf("file name : %s\n", file);
-
-	FILE *fd;
-	char route[MSG];
-	sprintf(route, "Transfere/%s", file);
-	fd = fopen(route, "r");
-
-	while (fd == NULL) {
-		printf("Mauvais nom de fichier\n");
-		system("cd Transfere/ && ls");
-		printf("%s\n", file);
-		printf("Entrer un nom de fichier : \n");
-		fgets(file, MSG, stdin);
-		char *pos = strchr(file, '\n');
-		*pos = '\0';
-		sprintf(route, "Transfere/%s", file);
-		fd = fopen(route, "r");
-	}
-
-	//Envoie le nom du fichier
-	send(socketActif, file, strlen(file)+1, 0);
-	fseek(fd, 0, SEEK_END);
-	long fsize = ftell(fd);
-	fseek(fd, 0, SEEK_SET);
-	char *content = malloc(fsize + 1);
-	fread(content, 1, fsize, fd);
-
-	//Envoie le contenu du fichier
-	send(socketActif, content, strlen(content)+1, 0);
-	fclose(fd);
-	free(content);
-	// free(file);
-	printf("(Fichier envoyé)\n");
-
-	pthread_exit(0);
-}
-
-
-/*
 	writeMsg : Int -> Int
 	sends a written message to a given socket to server 
 	who will relay it towards a second client
@@ -150,15 +62,6 @@ void *writeMsg(){
 		fgets(message, MSG, stdin);
 		char *pos = strchr(message, '\n');
 		*pos = '\0';
-		if(strcmp(message, "file") == 0) {
-			//Envoi le mot "file"
-			send(socketActif, message, strlen(message)+1, 0);
-			if (pthread_create(&writerT, NULL, fileSender, 0) == 0) {
-				printf("création thread File Write ok\n");
-			} else {
-				printf("création du thread File échouée\n");
-			} 
-		}
 		send(socketActif, message, strlen(message)+1, 0);
 	}
 	ack = 0;
@@ -174,15 +77,7 @@ void *readMsg(){
 	char msg[MSG];
 	while(strcmp(msg, "fin") != 0 && ack == 1) {
 		recv(socketActif, msg, 256, 0);
-		if(strcmp(msg, "file") == 0) {
-			if (pthread_create(&readerT, NULL, fileReceiver, 0) == 0) {
-				printf("création thread File Read ok\n");
-			} else {
-				printf("création du thread File échouée\n");
-			}
-		}else{
-			printf("Message reçu : %s\n", msg);
-		}
+		printf("Message reçu : %s\n", msg);
 	}
 	send(socketActif, "fin", strlen("fin")+1, 0);
 	ack = 0;
