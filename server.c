@@ -9,12 +9,34 @@
 #include <pthread.h>
 
 #define MSG 124
+#define MAX_CHANNELS 20
 
 int sCli1;
 int sCli2;
 
 int ack = 1;
 
+typedef struct clientDesc {
+	int socketClient;
+	struct sockaddr_in clientData;
+} clientDesc;
+
+typedef struct Client {
+	int idClient;
+	int idChannel;
+	clientDesc dataClient;
+	char* nickname;
+} Client;
+
+typedef struct Channel {
+	int idChannel;
+	char name[50];
+	int sizeMax;
+	int connectedClients;
+	Client* clients;
+} Channel;
+
+Channel channels[MAX_CHANNELS];
 // char msgCli[MSG];
 
 /*
@@ -98,47 +120,24 @@ void* fileForward(int ordre) {
 /*
 	forwardMsg : Int x Int -> Pointer
 	forwards a message received from a first client given in first parameter
-	towards a second client given in second parameter
+	towards clients in the same channel as client given in parameter
 	returns the value returned by recv
 */
-void* forwardMsg(int ordre) {
-	char msgCli[MSG];
+void* broadcastMsg(Client client) {
+	char msg[MSG];
+	int res = recv(client.idClient, msg, strlen(msg)+1, MSG);
 
-	int sender;
-	int receiver;
+	Channel channel = channels[client.idChannel];
 
-	pthread_t fileF1;
-	pthread_t fileF2;
-	// char msgCli[MSG];
-
-	if (ordre == 0) {
-		sender = sCli1;
-		receiver = sCli2;
-	} else {
-		sender = sCli2;
-		receiver = sCli1;
-	}
-	
-	while(ack != 0) {
-		recv(sender, msgCli, MSG, 0);
-		if(strcmp(msgCli, "fin") == 0) {
-			send(receiver, "fin", strlen("fin")+1, 0);
-			ack = 0;
-		} else if(strcmp(msgCli, "file") == 0) {
-			if (pthread_create(&fileF1, NULL, fileForward, ordre) == 0) {
-				printf("création thread fileForward 1 OK\n");
-			} else {
-				printf("création du thread File échouée\n");
-			}
-		}else {
-			send(receiver, msgCli, strlen(msgCli)+1, 0);
+	for (int i = 0; i<channel.sizeMax; i++) {
+		if (i != client.idClient && channel.clients[i].idClient != -1) {
+			sendMSG(channel.clients[i].dataClient.socketClient, msg);
 		}
 	}
-	pthread_join(fileF2, NULL);
-	pthread_join(fileF1, NULL);
-	pthread_cancel(fileF1);
-	pthread_cancel(fileF2);
-	pthread_exit(0);
+}
+
+void sendMSG(int socket, char* msg) {
+	send(socket, msg, strlen(msg)+1, 0);
 }
 
 /*
@@ -148,6 +147,47 @@ void* forwardMsg(int ordre) {
 int sendID(int socket, char* id) {
 	ssize_t sender = send(socket, id, 2, 0);
 	return sender;
+}
+
+int selectChannel(int socket) {
+	int chanId = 0;
+	char channel[MSG];
+
+	while (chanId <= 0) {
+		char msgServ[MSG];
+		sprintf(msgServ, "Available channels : \n");
+
+		char channelsDesc[MSG];
+		for(int i = 0; i<MAX_CHANNELS; i++) {
+			sprintf(channelsDesc, channels[i].name);
+		}
+
+		char response[MSG];
+		sendChanInfo(socket, channelsDesc);
+		int res = recv(socket, response, strlen(response)+1, MSG);
+
+		if (res == 0) {
+			return -1;
+		} else {
+			chanId = atoi(response);
+			if(chanId > 0 && chanId < MAX_CHANNELS) {
+				if(channels[chanId-1].connectedClients > channels[chanId-1].sizeMax) {
+					chanId = 0;
+				}
+			}
+		}
+	}
+	return chanId-1;
+}
+
+void *chat() {
+	Client client;
+
+	int chan = selectChannel(client.dataClient.socket);
+
+	if (chan >= 0) {
+		client.idChannel = chan;
+	}
 }
 
 int main(int argc, char* argv[]) {
@@ -178,46 +218,29 @@ int main(int argc, char* argv[]) {
 	/*
 		creates two slots for the 2 clients who will communicate
 	*/
-	struct sockaddr_in adCli1;
-	struct sockaddr_in adCli2;
+	struct sockaddr_in adCli;
 
 	printf("déclaration des thread\n");
-	pthread_t forward1;
-	pthread_t forward2;
+	pthread_t chat;
 	
 	while(1) {
 
-		sCli1 = acceptClient(socket, adCli1);
+		sCli1 = acceptClient(socket, adCli);
 		printf("Client 1 connecté\n");
-		sCli2 = acceptClient(socket, adCli2);
-		printf("Client 2 connecté\n");
-		/*
-			accepting the connection of the two clients
-		*/
 
-		if (pthread_create(&forward1, NULL, forwardMsg, 0) == 0) {
+		if (pthread_create(&chat, NULL, chat, 0) == 0) {
 			/*from client 1 to client 2*/
 			printf("Création du thread forward1 ok\n");
 		} else {
 			printf("Création du thread forward1 échouée\n");
 		}
 
-		if (pthread_create(&forward2, NULL, forwardMsg, 1) == 0) {
-			/*from client 2 to client 1*/
-			printf("Création du thread forward2 ok\n");
-		} else {
-			printf("Création du thread forward2 échouée\n");
-		}
-
 		/*
 			closes the sockets for each client
 		*/
-		pthread_join(forward2, NULL);
-		pthread_join(forward1, NULL);
-		pthread_cancel(forward1);
-		pthread_cancel(forward2);
+		pthread_join(chat, NULL);
+		pthread_cancel(chat);
 		close(sCli1);
-		close(sCli2);
 		ack = 1;
 		// exit(0);
 	} 
